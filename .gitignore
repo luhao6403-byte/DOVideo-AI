@@ -1,0 +1,22 @@
+.idea/
+.DS_Store
+*.iml
+.env
+.env.*
+!.env.example
+server/target/
+client/node_modules/
+client/dist/
+mysql/data/
+mysql/logs/
+redis/data/
+qdrant/data/
+minio/data/
+
+# Local dev / sensitive local artifacts
+.upload-token
+debug.log
+upload-debug-files/
+study/*.wav
+study/*.mp4
+study/*.png

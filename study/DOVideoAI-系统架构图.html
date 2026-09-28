@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOVideoAI 系统架构与主链路</title>
+<style>
+  body { margin: 0; padding: 16px; background: #F4F3EE; font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif; }
+  svg { display: block; width: 100%; height: auto; max-width: 1100px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 960 1220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DOVideoAI 系统架构与主链路图">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8A93A6"/>
+    </marker>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="480" y="40" text-anchor="middle" font-size="21" font-weight="700" fill="#1A1B1C">DOVideoAI 系统架构与主链路</text>
+  <text x="480" y="64" text-anchor="middle" font-size="12" fill="#6B7280">上传 → 异步解析（FFmpeg 双分支）→ 向量化入库 → 混合检索 RAG → Agent 多轮推理（类名均来自仓库实测）</text>
+
+  <!-- 1 Web 层 -->
+  <g>
+    <rect x="160" y="82" width="640" height="64" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="82" width="6" height="64" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="102" font-size="11" fill="#6B7280">WEB 层 · Vue3 + Vite（client/src）</text>
+    <text x="182" y="121" font-size="15" font-weight="600" fill="#1A1B1C">Vue3 工作台</text>
+    <text x="182" y="138" font-size="11.5" fill="#444">分片上传 chunkUpload.js ｜ SSE 进度 taskEvents.js ｜ Agent 问答 useAnalysisWorkspace.js</text>
+  </g>
+
+  <!-- 箭头1 -->
+  <line x1="480" y1="146" x2="480" y2="180" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="168" font-size="11.5" fill="#5B6472">① 分片上传（5MB / Redis 断点续传）</text>
+
+  <!-- 2 API 层 -->
+  <g>
+    <rect x="160" y="184" width="640" height="68" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="184" width="6" height="68" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="203" font-size="11" fill="#6B7280">API 层 · SpringBoot 3.5.9 :9090（com.example.server）</text>
+    <text x="182" y="222" font-size="13.5" font-weight="600" fill="#1A1B1C">UserController ｜ MediaController ｜ AnalysisController ｜ TaskEventService(SSE)</text>
+    <text x="182" y="240" font-size="11.5" fill="#444">鉴权 AuthService：PBKDF2 密码 + Redis 会话 Token（非 JWT）｜ 合并分片 → MinIO</text>
+  </g>
+
+  <!-- 箭头2 -->
+  <line x1="480" y1="252" x2="480" y2="286" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="274" font-size="11.5" fill="#5B6472">② 投递分析任务（提交即返回 202）</text>
+
+  <!-- 3 MQ -->
+  <g>
+    <rect x="160" y="290" width="640" height="64" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="290" width="6" height="64" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="309" font-size="11" fill="#6B7280">异步与缓存 · RocketMQ 5.3.4（namesrv :9914）</text>
+    <text x="182" y="328" font-size="13.5" font-weight="600" fill="#1A1B1C">video-analysis-topic ｜ 死信 topic：异步削峰，提交即返回</text>
+    <text x="182" y="346" font-size="11.5" fill="#444">生产者 AnalysisDispatchService ｜ 消费者 VideoAnalysisConsumer（Redisson 幂等 + 失败重投）</text>
+  </g>
+
+  <!-- 箭头3 -->
+  <line x1="480" y1="354" x2="480" y2="388" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="376" font-size="11.5" fill="#5B6472">③ 消费 + Redisson 幂等锁（内容指纹+目标）</text>
+
+  <!-- 4 双分支 -->
+  <text x="480" y="400" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1A1B1C">④ 解析 Worker：FFmpeg 双分支并行（独立有界线程池 · 单路容错 · 感知哈希去重）</text>
+  <g>
+    <rect x="160" y="412" width="310" height="128" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="412" width="6" height="128" rx="3" fill="#4E9A6E"/>
+    <text x="180" y="434" font-size="11" fill="#6B7280">语音分支 · AudioExportService.java</text>
+    <text x="180" y="456" font-size="14.5" font-weight="600" fill="#1A1B1C">FFmpeg 抽音频（60s 切片）</text>
+    <text x="180" y="480" font-size="11.5" fill="#444">→ ASR 硅基 TeleSpeechASR</text>
+    <text x="180" y="500" font-size="11.5" fill="#444">（AliyunAsrUtils + 分段转写）</text>
+    <text x="180" y="524" font-size="11.5" fill="#444">→ 语音文本 + 时间戳</text>
+  </g>
+  <g>
+    <rect x="490" y="412" width="310" height="128" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="490" y="412" width="6" height="128" rx="3" fill="#B07AC9"/>
+    <text x="510" y="434" font-size="11" fill="#6B7280">视觉分支 · VideoChunkingService.java</text>
+    <text x="510" y="456" font-size="14.5" font-weight="600" fill="#1A1B1C">FFmpeg 关键帧（场景检测+30s 保底）</text>
+    <text x="510" y="480" font-size="11.5" fill="#444">→ Tesseract OCR</text>
+    <text x="510" y="500" font-size="11.5" fill="#444">（chi_sim + eng，OcrUtils）</text>
+    <text x="510" y="524" font-size="11.5" fill="#444">→ 画面文字 + 关键帧图</text>
+  </g>
+
+  <!-- 箭头4 -->
+  <line x1="480" y1="540" x2="480" y2="564" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="556" font-size="11.5" fill="#5B6472">⑤ 合并 VideoContext（语音区间 + OCR + 时间戳统一分段）</text>
+
+  <!-- 5 分块 Embedding -->
+  <g>
+    <rect x="160" y="568" width="640" height="60" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="568" width="6" height="60" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="588" font-size="11" fill="#6B7280">检索准备 · VideoChunkingService + EmbeddingUtils</text>
+    <text x="182" y="607" font-size="14" font-weight="600" fill="#1A1B1C">5 分钟分块 → 摘要 / 关键词 + BGE-M3 Embedding（硅基）</text>
+  </g>
+
+  <!-- 箭头5 -->
+  <line x1="480" y1="628" x2="480" y2="662" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="650" font-size="11.5" fill="#5B6472">向量 upsert →</text>
+
+  <!-- 6 Qdrant -->
+  <g>
+    <rect x="160" y="666" width="640" height="60" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="666" width="6" height="60" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="686" font-size="11" fill="#6B7280">检索 · QdrantVectorStore + VideoEvidenceRetrievalService</text>
+    <text x="182" y="705" font-size="13.5" font-weight="600" fill="#1A1B1C">混合检索：关键词匹配 + Qdrant 语义召回 TopK 证据（挂了降级关键词）</text>
+  </g>
+
+  <!-- 箭头6 -->
+  <line x1="480" y1="726" x2="480" y2="760" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="748" font-size="11.5" fill="#5B6472">⑥ 证据片段 + 用户目标 →</text>
+
+  <!-- 7 AgentLoop -->
+  <g>
+    <rect x="160" y="764" width="640" height="104" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="764" width="6" height="104" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="784" font-size="11" fill="#6B7280">Agent · AgentLoopService + EvidenceVerificationService + AgentExecutionBudget</text>
+    <text x="182" y="803" font-size="14.5" font-weight="600" fill="#1A1B1C">AgentLoop：Planner → Executor → Critic（最多 2 轮）</text>
+    <g>
+      <rect x="182" y="814" width="128" height="24" rx="12" fill="#E8F2FB"/>
+      <text x="246" y="831" text-anchor="middle" font-size="11.5" fill="#1F3A5F">Planner 拆解目标</text>
+      <rect x="322" y="814" width="128" height="24" rx="12" fill="#E8F2FB"/>
+      <text x="386" y="831" text-anchor="middle" font-size="11.5" fill="#1F3A5F">Executor 检索+生成</text>
+      <rect x="462" y="814" width="128" height="24" rx="12" fill="#E8F2FB"/>
+      <text x="526" y="831" text-anchor="middle" font-size="11.5" fill="#1F3A5F">Critic 校验反思</text>
+    </g>
+    <text x="182" y="854" font-size="11.5" fill="#444">预算 2 轮 / 120s / 50k Token ｜ 时间戳证据校验 ｜ 四模式（通用/学习/审查/创作）</text>
+  </g>
+
+  <!-- 箭头7 -->
+  <line x1="480" y1="868" x2="480" y2="900" stroke="#8A93A6" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="492" y="888" font-size="11.5" fill="#5B6472">⑦ SSE 推送：阶段进度 + 结构化结论（结论/证据/建议）</text>
+
+  <!-- 8 SSE 结果 -->
+  <g>
+    <rect x="160" y="904" width="640" height="64" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="904" width="6" height="64" rx="3" fill="#3D7EA6"/>
+    <text x="182" y="924" font-size="11" fill="#6B7280">回传 · TaskEventService（Redis Pub/Sub → SseEmitter → 前端 taskEvents.js）</text>
+    <text x="182" y="943" font-size="15" font-weight="600" fill="#1A1B1C">Vue3 工作台：结构化结论 + 时间戳证据 + 建议</text>
+    <text x="182" y="961" font-size="11.5" fill="#444">支持基于同一视频继续追问（AgentCheckpoint 断点恢复，MySQL 真源 + Redis 热缓存）</text>
+  </g>
+
+  <!-- 存储层 -->
+  <text x="480" y="1006" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1A1B1C">持久化与中间件（端口均为非默认，见 .env / docker-compose.yml）</text>
+  <g>
+    <rect x="160" y="1020" width="190" height="122" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="160" y="1020" width="6" height="122" rx="3" fill="#C85A5A"/>
+    <text x="180" y="1042" font-size="14.5" font-weight="600" fill="#1A1B1C">MySQL 8（:3307）</text>
+    <text x="180" y="1064" font-size="10.5" fill="#5B6472">业务真源 + Agent 断点</text>
+    <text x="180" y="1084" font-size="10.5" fill="#444">users（会话/用户）</text>
+    <text x="180" y="1102" font-size="10.5" fill="#444">media_files（转写/摘要）</text>
+    <text x="180" y="1120" font-size="10.5" fill="#444">agent_checkpoints</text>
+    <text x="180" y="1138" font-size="10.5" fill="#444">failed_analysis_tasks</text>
+  </g>
+  <g>
+    <rect x="370" y="1020" width="190" height="122" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="370" y="1020" width="6" height="122" rx="3" fill="#C98A3D"/>
+    <text x="390" y="1042" font-size="14.5" font-weight="600" fill="#1A1B1C">Redis 7（:16379）</text>
+    <text x="390" y="1064" font-size="10.5" fill="#5B6472">缓存 + 状态 + 锁（Redisson）</text>
+    <text x="390" y="1084" font-size="10.5" fill="#444">会话 Token（24h）</text>
+    <text x="390" y="1102" font-size="10.5" fill="#444">分片断点记录</text>
+    <text x="390" y="1120" font-size="10.5" fill="#444">登录限流 / 令牌桶</text>
+    <text x="390" y="1138" font-size="10.5" fill="#444">SSE 事件 Pub/Sub</text>
+  </g>
+  <g>
+    <rect x="580" y="1020" width="190" height="122" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="580" y="1020" width="6" height="122" rx="3" fill="#4E9A6E"/>
+    <text x="600" y="1042" font-size="14.5" font-weight="600" fill="#1A1B1C">MinIO（:9000）</text>
+    <text x="600" y="1064" font-size="10.5" fill="#5B6472">对象存储 · 控制台 :9001</text>
+    <text x="600" y="1084" font-size="10.5" fill="#444">bucket: media</text>
+    <text x="600" y="1102" font-size="10.5" fill="#444">视频原片</text>
+    <text x="600" y="1120" font-size="10.5" fill="#444">封面 / 关键帧</text>
+    <text x="600" y="1138" font-size="10.5" fill="#444">（分片合并后写入）</text>
+  </g>
+  <g>
+    <rect x="790" y="1020" width="190" height="122" rx="12" fill="#FFFFFF" stroke="#E4E3DD" stroke-width="1"/>
+    <rect x="790" y="1020" width="6" height="122" rx="3" fill="#B07AC9"/>
+    <text x="810" y="1042" font-size="14.5" font-weight="600" fill="#1A1B1C">Qdrant（:6333）</text>
+    <text x="810" y="1064" font-size="10.5" fill="#5B6472">向量库 · collection</text>
+    <text x="810" y="1084" font-size="10.5" fill="#444">video_chunks</text>
+    <text x="810" y="1102" font-size="10.5" fill="#444">分块向量（BGE-M3）</text>
+    <text x="810" y="1120" font-size="10.5" fill="#444">payload 带时间范围</text>
+    <text x="810" y="1138" font-size="10.5" fill="#444">/摘要/关键词</text>
+  </g>
+
+  <!-- 底部说明 -->
+  <text x="480" y="1196" text-anchor="middle" font-size="11" fill="#8A93A6">示意：依据仓库真实类名与 README 流程绘制（2026-09-22 核对）｜ 后端 :9090 · 前端 :5173 · 密钥全部走 .env 注入</text>
+</svg>
+</body>
+</html>
