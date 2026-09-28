@@ -3,6 +3,12 @@
 ## 学习日期
 2026-09-29
 
+## 本次完成
+- 项目已推送到 GitHub：https://github.com/luhao6403-byte/DOVideo-AI
+- 本地 git 已初始化为 `main` 分支
+- 已创建并推送分支 `docs/day1-notes`，PR 链接：
+  https://github.com/luhao6403-byte/DOVideo-AI/pull/new/docs/day1-notes
+
 ## 核心结论
 - 本项目用 Redis 会话 Token，不是 JWT。
 - 密码用 PBKDF2WithHmacSHA256 存储，210000 次迭代，16 字节随机盐，256 bit 输出。
@@ -59,6 +65,19 @@ GET /media/list
 - 收到 401 且不是 `/user/` 接口时清 token 并派发 `auth-expired` 事件。
 - 非 JSON 响应（SSE、音频）原样透传，不触碰 body。
 
+## 本机 git/github 记录
+- GitHub CLI `gh` 当前权限受限，暂用 git 直接推送。
+- git 已配置 GitHub 代理：`http://127.0.0.1:7897`
+- 后续推送大改前先 `git status` 确认没有把 `.env`、`.upload-token`、本地数据库目录带进去。
+
 ## 验证记录
 - 2026-09-28 已用测试账号 coder_day1 / study123 跑通：
   注册 -> 登录 -> 带 token 调 /media/list
+- 网络到 GitHub 需要走代理端口 `7897`，直接连接 `github.com:443` 会失败。
+
+## 明天进度建议
+- 先合并/关闭 `docs/day1-notes` PR（如果还没处理）
+- 开始 Day2：文件上传 MinIO + 分片 + 断点续传
+  - 后端：`MediaController` -> `ChunkUploadService` -> `MinioUtils`
+  - 前端：`client/src/chunkUpload.js`
+  - 验证：上传视频后到 MinIO 控制台看 bucket `media`
